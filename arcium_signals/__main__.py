@@ -43,14 +43,15 @@ def _kv(text: str | None) -> dict:
     return out
 
 
-def analyse(kind, name, source='demo', instrument='EUR_USD', params=None, init=None, opts=None, spread_bps=1.0) -> dict:
-    bars = data.load(source, instrument)
+def analyse(kind, name, source='demo', instrument='EUR_USD', params=None, init=None, opts=None, spread_bps=1.0,
+            rate='M1', start=None, end=None) -> dict:
+    bars = data.load(source, instrument, rate, start, end)
     signal, raw, details = components.run_component(kind, name, bars, instrument, params, init, opts)
     close = bars[instrument]['close']
     bt = engine.backtest(close, signal, spread_bps)
     tr = engine.trades(bt)
     return {'component': {'kind': kind, 'name': name, **details}, 'instrument': instrument,
-            'data': source, 'spread_bps': spread_bps,
+            'data': source if not source.startswith('hub') else f'{source} {rate}', 'spread_bps': spread_bps,
             'period': [str(close.index[0]), str(close.index[-1])],
             'summary': stats.summary(bt, tr, close, raw, signal),
             'trades': tr.astype({'entry': str, 'exit': str}).to_dict('records'),
@@ -58,13 +59,19 @@ def analyse(kind, name, source='demo', instrument='EUR_USD', params=None, init=N
 
 
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ['hub']:   # read the Data Hub warehouse (hub.py)
+        from arcium_signals import hub
+        return hub.main(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     sub.add_parser('list')
     r = sub.add_parser('run')
     r.add_argument('kind', choices=components.KINDS)
     r.add_argument('name')
-    r.add_argument('--data', default='demo')
+    r.add_argument('--data', default='demo', help="demo, hub (OANDA), hub:yahoo|webull|webull_crypto, or a CSV path")
+    r.add_argument('--rate', default='M1', help='bar rate for --data hub (M1, M5, H1, D ...)')
+    r.add_argument('--start'); r.add_argument('--end')
     r.add_argument('--instrument', default='EUR_USD')
     r.add_argument('--params')
     r.add_argument('--init')
@@ -88,7 +95,7 @@ def main(argv=None) -> int:
 
     opts = {'map': a.map, 'z_window': a.z_window, 'invert': a.invert, 'side': a.side,
             'hold': a.hold, 'side_window': a.side_window}
-    rep = analyse(a.kind, a.name, a.data, a.instrument, _kv(a.params), _kv(a.init), opts, a.spread_bps)
+    rep = analyse(a.kind, a.name, a.data, a.instrument, _kv(a.params), _kv(a.init), opts, a.spread_bps, a.rate, a.start, a.end)
     print(f"{a.kind} {a.name} on {a.instrument}  {rep['period'][0]} -> {rep['period'][1]}")
     print(json.dumps(rep['component'], default=str))
     for k, v in rep['summary'].items():

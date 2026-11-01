@@ -1,4 +1,5 @@
-"""Bars for the test unit: the installed canned demo bars, or a CSV of time,open,high,low,close[,volume]."""
+"""Bars for the test unit: the installed canned demo bars, the Data Hub warehouse (hub.py), or a CSV of
+time,open,high,low,close[,volume]."""
 from __future__ import annotations
 
 import os
@@ -31,8 +32,12 @@ def demo_instruments() -> list[str]:
         return sorted(pickle.load(f)['data'].keys())
 
 
-def load(source: str = 'demo', instrument: str = 'EUR_USD') -> dict[str, pd.DataFrame]:
-    """{instrument: bars} — every instrument available, so cross-instrument features can see the others."""
+def load(source: str = 'demo', instrument: str = 'EUR_USD', rate: str = 'M1', start=None, end=None) -> dict[str, pd.DataFrame]:
+    """{instrument: bars} — every instrument available, so cross-instrument features can see the others.
+    source 'hub' (OANDA) or 'hub:<source>' (hub.SOURCES) reads that instrument's `rate` bars from the warehouse."""
+    if source == 'hub' or source.startswith('hub:'):
+        from arcium_signals import hub
+        return {instrument: _tidy(hub.bars(instrument, rate, source.partition(':')[2] or 'oanda', start, end).reset_index())}
     if source == 'demo':
         if not os.path.isfile(DEMO):
             raise SystemExit('no demo bars: run python install.py first')

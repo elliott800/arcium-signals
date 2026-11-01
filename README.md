@@ -22,6 +22,25 @@ python -m arcium_signals run feature frac_diff_ffd --out report.json
 python -m pytest -q
 ```
 
+## Real data: the Data Hub warehouse
+
+On the laptop or the server (the only two places with a copy of the warehouse), the test unit and any
+side project can read what the Data Hub records. Read-only: the connection refuses writes.
+
+```
+python -m arcium_signals hub list                         # every recording: rows, first, last
+python -m arcium_signals hub list oanda_practice
+python -m arcium_signals hub bars EUR_USD --rate M1 --csv eurusd_m1.csv
+python -m arcium_signals hub bars AAPL --rate D --source yahoo
+python -m arcium_signals hub facts AAPL                   # SEC EDGAR figures
+python -m arcium_signals run alpha dual_ma --data hub --instrument EUR_USD --rate M1
+python -m arcium_signals run feature momentum --data hub:yahoo --instrument SPY --rate D
+```
+
+In Python: `from arcium_signals import hub` then `hub.bars(...)`, `hub.facts(...)`, `hub.series('fred', ...)`,
+`hub.cot(...)`, `hub.catalog(...)`. It connects with `ARCIUM_HUB_DATABASE_URL`, else `DATABASE_URL`, else
+the app's `../arciumsignals/.env.local`.
+
 `python -m arcium_signals --help` lists every option.
 
 ## How each kind becomes a signal
